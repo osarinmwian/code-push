@@ -15,8 +15,7 @@ public class MainApplication extends Application {
 
         CodePush codePush = new CodePushBuilder(deploymentKey, context)
                 .setIsDebugMode(true) // Optional
-                .setServerUrl("https://your-codepush-server.com") // Optional override
-                .setPublicKeyResourceDescriptor(R.raw.codepush_public_key) // Optional, if you're using public key
+                .setServerUrl("http://localhost:3000")
                 .build();
 
         // Now you can use the codePush instance
