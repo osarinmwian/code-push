@@ -1,25 +1,19 @@
-# Add project specific ProGuard rules here.
-# By default, the flags in this file are appended to flags specified
-# in /usr/local/Cellar/android-sdk/24.3.3/tools/proguard/proguard-android.txt
-# You can edit the include path and order by changing the proguardFiles
-# directive in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Preserve React Native core classes
+-keep class com.facebook.react.** { *; }
+-keepclassmembers class com.facebook.react.** { *; }
+-dontwarn com.facebook.react.**
 
-# Add any project specific keep options here:
+# Preserve custom CodePush classes
+-keep class com.codepushsdk.react.** { *; }
+-keepclassmembers class com.codepushsdk.react.** { *; }
+-dontwarn com.codepushsdk.react.**
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve Nimbus JOSE JWT
+-keep class com.nimbusds.jose.** { *; }
+-keepclassmembers class com.nimbusds.jose.** { *; }
+-dontwarn com.nimbusds.jose.**
 
-# Invoked via reflection, when setting js bundle.
+# Preserve ReactInstanceManager for bundle loading
 -keepclassmembers class com.facebook.react.ReactInstanceManager {
     private final ** mBundleLoader;
 }
-
-# Can't find referenced class org.bouncycastle.**
--dontwarn com.nimbusds.jose.**

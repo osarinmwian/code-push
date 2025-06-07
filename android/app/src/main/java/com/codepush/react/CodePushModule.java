@@ -1,4 +1,3 @@
-
 package com.codepushsdk.react;
 
 import android.util.Log;
@@ -23,11 +22,23 @@ public class CodePushModule extends ReactContextBaseJavaModule {
         Log.d(TAG, "Using deployment key: " + (deploymentKey != null ? deploymentKey.substring(0, Math.min(deploymentKey.length(), 8)) + "..." : "null"));
         
         this.codePush = new CodePushBuilder(deploymentKey, reactContext)
-            .setIsDebugMode(BuildConfig.DEBUG)
+            .setIsDebugMode(isDebugMode()) // Use method to check debug mode
             .setServerUrl("http://localhost:3000")
             .build();
         
         Log.d(TAG, "CodePushModule initialized successfully");
+    }
+
+    // Helper method to check debug mode
+    private boolean isDebugMode() {
+        try {
+            // Try to access BuildConfig from your app package
+            Class<?> buildConfigClass = Class.forName("thc.mobile.BuildConfig");
+            return (Boolean) buildConfigClass.getField("DEBUG").get(null);
+        } catch (Exception e) {
+            Log.w(TAG, "Could not access BuildConfig.DEBUG, defaulting to false", e);
+            return false;
+        }
     }
 
     private String getDeploymentKey(ReactApplicationContext reactContext) {

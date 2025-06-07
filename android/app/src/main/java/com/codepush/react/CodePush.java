@@ -2,9 +2,17 @@ package com.codepushsdk.react;
 
 import android.content.Context;
 
-import java.io.File;
+import com.facebook.react.ReactPackage;
+import com.facebook.react.bridge.NativeModule;
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.uimanager.ViewManager;
 
-public class CodePush {
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class CodePush implements ReactPackage {
 
     private static final String BUNDLE_FILE_NAME = "main.jsbundle";
     private static final String CODE_PUSH_DIR_NAME = "CodePush";
@@ -27,10 +35,28 @@ public class CodePush {
     }
     
     // Constructor expected by CodePushBuilder
- public CodePush(String deploymentKey, Context context, boolean isDebugMode) {
-    this(deploymentKey, context, isDebugMode, DEFAULT_SERVER_URL, null);
-}
+    public CodePush(String deploymentKey, Context context, boolean isDebugMode, 
+                   String serverUrl, Integer publicKeyResourceDescriptor) {
+        this.mDeploymentKey = deploymentKey;
+        this.mContext = context;
+        this.mIsDebugMode = isDebugMode;
+        this.mServerUrl = serverUrl;
+        this.mPublicKeyResourceDescriptor = publicKeyResourceDescriptor;
+    }
 
+    // ReactPackage interface implementation
+    @Override
+    public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
+        List<NativeModule> modules = new ArrayList<>();
+        // Add your native modules here if any
+        // modules.add(new CodePushNativeModule(reactContext));
+        return modules;
+    }
+
+    @Override
+    public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
+        return Collections.emptyList();
+    }
 
     // Static methods expected by other classes
     public static String getServiceUrl() {
