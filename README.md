@@ -22,3 +22,6 @@ public class MainApplication extends Application {
         // For example: codePush.checkForUpdate();
     }
 }
+
+installation 
+yarn add react-native-codepush-sdk@https://github.com/osarinmwian/code-push.git
