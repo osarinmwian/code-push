@@ -23,7 +23,7 @@ public class CodePushModule extends ReactContextBaseJavaModule {
         
         this.codePush = new CodePushBuilder(deploymentKey, reactContext)
             .setIsDebugMode(isDebugMode()) // Use method to check debug mode
-            .setServerUrl("http://localhost:3000")
+            .setServerUrl("http://192.168.191.21:3000")
             .build();
         
         Log.d(TAG, "CodePushModule initialized successfully");

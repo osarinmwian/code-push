@@ -16,7 +16,7 @@ public class CodePush implements ReactPackage {
 
     private static final String BUNDLE_FILE_NAME = "main.jsbundle";
     private static final String CODE_PUSH_DIR_NAME = "CodePush";
-    private static final String DEFAULT_SERVER_URL = "http://localhost:3000";
+    private static final String DEFAULT_SERVER_URL = "http://192.168.191.21:3000";
     
     // Instance variables for the builder pattern
     private String mDeploymentKey;
