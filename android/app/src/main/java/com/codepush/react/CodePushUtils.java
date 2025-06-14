@@ -2,24 +2,11 @@ package com.codepushsdk.react;
 
 import android.util.Log;
 
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.NoSuchKeyException;
-import com.facebook.react.bridge.ReadableArray;
-import com.facebook.react.bridge.ReadableMap;
-import com.facebook.react.bridge.ReadableMapKeySetIterator;
-import com.facebook.react.bridge.ReadableType;
-import com.facebook.react.bridge.WritableArray;
-import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.*;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+import org.json.*;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.Iterator;
 
 public class CodePushUtils {
@@ -29,167 +16,157 @@ public class CodePushUtils {
     }
 
     public static WritableArray convertJsonArrayToWritable(JSONArray jsonArr) {
-        WritableArray arr = Arguments.createArray();
-        for (int i=0; i<jsonArr.length(); i++) {
-            Object obj = null;
-            try {
-                obj = jsonArr.get(i);
-            } catch (JSONException jsonException) {
-                // Should not happen.
-                throw new CodePushUnknownException(i + " should be within bounds of array " + jsonArr.toString(), jsonException);
-            }
+        WritableArray array = Arguments.createArray();
 
-            if (obj instanceof JSONObject)
-                arr.pushMap(convertJsonObjectToWritable((JSONObject) obj));
-            else if (obj instanceof JSONArray)
-                arr.pushArray(convertJsonArrayToWritable((JSONArray) obj));
-            else if (obj instanceof String)
-                arr.pushString((String) obj);
-            else if (obj instanceof Double)
-                arr.pushDouble((Double) obj);
-            else if (obj instanceof Integer)
-                arr.pushInt((Integer) obj);
-            else if (obj instanceof Boolean)
-                arr.pushBoolean((Boolean) obj);
-            else if (obj == null)
-                arr.pushNull();
-            else
-                throw new CodePushUnknownException("Unrecognized object: " + obj);
+        for (int i = 0; i < jsonArr.length(); i++) {
+            try {
+                Object obj = jsonArr.get(i);
+
+                if (obj instanceof JSONObject)
+                    array.pushMap(convertJsonObjectToWritable((JSONObject) obj));
+                else if (obj instanceof JSONArray)
+                    array.pushArray(convertJsonArrayToWritable((JSONArray) obj));
+                else if (obj instanceof String)
+                    array.pushString((String) obj);
+                else if (obj instanceof Double)
+                    array.pushDouble((Double) obj);
+                else if (obj instanceof Integer)
+                    array.pushInt((Integer) obj);
+                else if (obj instanceof Boolean)
+                    array.pushBoolean((Boolean) obj);
+                else if (obj == null)
+                    array.pushNull();
+                else
+                    throw new CodePushUnknownException("Unsupported value in JSONArray: " + obj);
+
+            } catch (JSONException e) {
+                throw new CodePushUnknownException("Invalid JSON at index " + i + ": " + jsonArr, e);
+            }
         }
 
-        return arr;
+        return array;
     }
 
     public static WritableMap convertJsonObjectToWritable(JSONObject jsonObj) {
         WritableMap map = Arguments.createMap();
-        Iterator<String> it = jsonObj.keys();
-        while(it.hasNext()){
-            String key = it.next();
-            Object obj = null;
-            try {
-                if (!jsonObj.isNull(key)) {
-                    obj = jsonObj.get(key);
-                }
-            } catch (JSONException jsonException) {
-                // Should not happen.
-                throw new CodePushUnknownException("Key " + key + " should exist in " + jsonObj.toString() + ".", jsonException);
-            }
+        Iterator<String> keys = jsonObj.keys();
 
-            if (obj instanceof JSONObject)
-                map.putMap(key, convertJsonObjectToWritable((JSONObject) obj));
-            else if (obj instanceof JSONArray)
-                map.putArray(key, convertJsonArrayToWritable((JSONArray) obj));
-            else if (obj instanceof String)
-                map.putString(key, (String) obj);
-            else if (obj instanceof Double)
-                map.putDouble(key, (Double) obj);
-            else if (obj instanceof Long)
-                map.putDouble(key, ((Long) obj).doubleValue());
-            else if (obj instanceof Integer)
-                map.putInt(key, (Integer) obj);
-            else if (obj instanceof Boolean)
-                map.putBoolean(key, (Boolean) obj);
-            else if (obj == null)
-                map.putNull(key);
-            else
-                throw new CodePushUnknownException("Unrecognized object: " + obj);
+        while (keys.hasNext()) {
+            String key = keys.next();
+            try {
+                Object value = jsonObj.isNull(key) ? null : jsonObj.get(key);
+
+                if (value instanceof JSONObject)
+                    map.putMap(key, convertJsonObjectToWritable((JSONObject) value));
+                else if (value instanceof JSONArray)
+                    map.putArray(key, convertJsonArrayToWritable((JSONArray) value));
+                else if (value instanceof String)
+                    map.putString(key, (String) value);
+                else if (value instanceof Double)
+                    map.putDouble(key, (Double) value);
+                else if (value instanceof Long)
+                    map.putDouble(key, ((Long) value).doubleValue());
+                else if (value instanceof Integer)
+                    map.putInt(key, (Integer) value);
+                else if (value instanceof Boolean)
+                    map.putBoolean(key, (Boolean) value);
+                else if (value == null)
+                    map.putNull(key);
+                else
+                    throw new CodePushUnknownException("Unsupported value in JSONObject: " + value);
+
+            } catch (JSONException e) {
+                throw new CodePushUnknownException("Failed to parse key: " + key + " in JSONObject: " + jsonObj, e);
+            }
         }
 
         return map;
     }
 
-    public static JSONArray convertReadableToJsonArray(ReadableArray arr) {
-        JSONArray jsonArr = new JSONArray();
-        for (int i=0; i<arr.size(); i++) {
-            ReadableType type = arr.getType(i);
+    public static JSONArray convertReadableToJsonArray(ReadableArray array) {
+        JSONArray jsonArray = new JSONArray();
+
+        for (int i = 0; i < array.size(); i++) {
+            ReadableType type = array.getType(i);
             switch (type) {
                 case Map:
-                    jsonArr.put(convertReadableToJsonObject(arr.getMap(i)));
+                    jsonArray.put(convertReadableToJsonObject(array.getMap(i)));
                     break;
                 case Array:
-                    jsonArr.put(convertReadableToJsonArray(arr.getArray(i)));
+                    jsonArray.put(convertReadableToJsonArray(array.getArray(i)));
                     break;
                 case String:
-                    jsonArr.put(arr.getString(i));
+                    jsonArray.put(array.getString(i));
                     break;
                 case Number:
-                    Double number = arr.getDouble(i);
-                    if ((number == Math.floor(number)) && !Double.isInfinite(number)) {
-                        // This is a whole number.
-                        jsonArr.put(number.longValue());
-                    } else {
-                        try {
-                            jsonArr.put(number.doubleValue());
-                        } catch (JSONException jsonException) {
-                            throw new CodePushUnknownException("Unable to put value " + arr.getDouble(i) + " in JSONArray");
-                        }
-                    }
+                    double number = array.getDouble(i);
+                    jsonArray.put((number == Math.floor(number)) && !Double.isInfinite(number)
+                            ? (long) number
+                            : number);
                     break;
                 case Boolean:
-                    jsonArr.put(arr.getBoolean(i));
+                    jsonArray.put(array.getBoolean(i));
                     break;
                 case Null:
-                    jsonArr.put(null);
+                    jsonArray.put(JSONObject.NULL);
                     break;
+                default:
+                    throw new CodePushUnknownException("Unsupported ReadableType in array: " + type);
             }
         }
 
-        return jsonArr;
+        return jsonArray;
     }
 
     public static JSONObject convertReadableToJsonObject(ReadableMap map) {
-        JSONObject jsonObj = new JSONObject();
-        ReadableMapKeySetIterator it = map.keySetIterator();
-        while (it.hasNextKey()) {
-            String key = it.nextKey();
+        JSONObject jsonObject = new JSONObject();
+        ReadableMapKeySetIterator iterator = map.keySetIterator();
+
+        while (iterator.hasNextKey()) {
+            String key = iterator.nextKey();
             ReadableType type = map.getType(key);
+
             try {
                 switch (type) {
                     case Map:
-                        jsonObj.put(key, convertReadableToJsonObject(map.getMap(key)));
+                        jsonObject.put(key, convertReadableToJsonObject(map.getMap(key)));
                         break;
                     case Array:
-                        jsonObj.put(key, convertReadableToJsonArray(map.getArray(key)));
+                        jsonObject.put(key, convertReadableToJsonArray(map.getArray(key)));
                         break;
                     case String:
-                        jsonObj.put(key, map.getString(key));
+                        jsonObject.put(key, map.getString(key));
                         break;
                     case Number:
-                        jsonObj.put(key, map.getDouble(key));
+                        jsonObject.put(key, map.getDouble(key));
                         break;
                     case Boolean:
-                        jsonObj.put(key, map.getBoolean(key));
+                        jsonObject.put(key, map.getBoolean(key));
                         break;
                     case Null:
-                        jsonObj.put(key, null);
+                        jsonObject.put(key, JSONObject.NULL);
                         break;
                     default:
-                        throw new CodePushUnknownException("Unrecognized type: " + type + " of key: " + key);
+                        throw new CodePushUnknownException("Unsupported ReadableType in map: " + type);
                 }
-            } catch (JSONException jsonException) {
-                throw new CodePushUnknownException("Error setting key: " + key + " in JSONObject", jsonException);
+            } catch (JSONException e) {
+                throw new CodePushUnknownException("Failed to insert key: " + key + " into JSONObject", e);
             }
         }
 
-        return jsonObj;
+        return jsonObject;
     }
 
     public static String getStringFromInputStream(InputStream inputStream) throws IOException {
-        BufferedReader bufferedReader = null;
-        try {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
             StringBuilder buffer = new StringBuilder();
-            bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
-
             String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                buffer.append(line);
-                buffer.append("\n");
+
+            while ((line = reader.readLine()) != null) {
+                buffer.append(line).append('\n');
             }
 
             return buffer.toString().trim();
-        } finally {
-            if (bufferedReader != null) bufferedReader.close();
-            if (inputStream != null) inputStream.close();
         }
     }
 
@@ -197,9 +174,28 @@ public class CodePushUtils {
         String content = FileUtils.readFileToString(filePath);
         try {
             return new JSONObject(content);
-        } catch (JSONException jsonException) {
-            // Should not happen
-            throw new CodePushMalformedDataException(filePath, jsonException);
+        } catch (JSONException e) {
+            throw new CodePushMalformedDataException("Invalid JSON in file: " + filePath, e);
+        }
+    }
+
+    public static void writeJsonToFile(JSONObject json, String filePath) throws IOException {
+        FileUtils.writeStringToFile(json.toString(), filePath);
+    }
+
+    public static void setJSONValueForKey(JSONObject json, String key, Object value) {
+        try {
+            json.put(key, value);
+        } catch (JSONException e) {
+            throw new CodePushUnknownException("Failed to insert key: " + key + " with value: " + value, e);
+        }
+    }
+
+    public static String tryGetString(ReadableMap map, String key) {
+        try {
+            return map.getString(key);
+        } catch (NoSuchKeyException e) {
+            return null;
         }
     }
 
@@ -212,27 +208,6 @@ public class CodePushUtils {
     }
 
     public static void logBundleUrl(String path) {
-        log("Loading JS bundle from \"" + path + "\"");
-    }
-
-    public static void setJSONValueForKey(JSONObject json, String key, Object value) {
-        try {
-            json.put(key, value);
-        } catch (JSONException e) {
-            throw new CodePushUnknownException("Unable to set value " + value + " for key " + key + " to JSONObject");
-        }
-    }
-
-    public static String tryGetString(ReadableMap map, String key) {
-        try {
-            return map.getString(key);
-        } catch (NoSuchKeyException e) {
-            return null;
-        }
-    }
-
-    public static void writeJsonToFile(JSONObject json, String filePath) throws IOException {
-        String jsonString = json.toString();
-        FileUtils.writeStringToFile(jsonString, filePath);
+        log("Loading JS bundle from: " + path);
     }
 }

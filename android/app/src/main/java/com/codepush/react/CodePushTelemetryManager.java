@@ -11,165 +11,164 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 public class CodePushTelemetryManager {
-    private SharedPreferences mSettings;
-    private final String APP_VERSION_KEY = "appVersion";
-    private final String DEPLOYMENT_FAILED_STATUS = "DeploymentFailed";
-    private final String DEPLOYMENT_KEY_KEY = "deploymentKey";
-    private final String DEPLOYMENT_SUCCEEDED_STATUS = "DeploymentSucceeded";
-    private final String LABEL_KEY = "label";
-    private final String LAST_DEPLOYMENT_REPORT_KEY = "CODE_PUSH_LAST_DEPLOYMENT_REPORT";
-    private final String PACKAGE_KEY = "package";
-    private final String PREVIOUS_DEPLOYMENT_KEY_KEY = "previousDeploymentKey";
-    private final String PREVIOUS_LABEL_OR_APP_VERSION_KEY = "previousLabelOrAppVersion";
-    private final String RETRY_DEPLOYMENT_REPORT_KEY = "CODE_PUSH_RETRY_DEPLOYMENT_REPORT";
-    private final String STATUS_KEY = "status";
+    private final SharedPreferences settings;
 
-    public CodePushTelemetryManager(Context applicationContext) {
-        mSettings = applicationContext.getSharedPreferences(CodePushConstants.CODE_PUSH_PREFERENCES, 0);
+    private static final String APP_VERSION_KEY = "appVersion";
+    private static final String DEPLOYMENT_FAILED_STATUS = "DeploymentFailed";
+    private static final String DEPLOYMENT_KEY_KEY = "deploymentKey";
+    private static final String DEPLOYMENT_SUCCEEDED_STATUS = "DeploymentSucceeded";
+    private static final String LABEL_KEY = "label";
+    private static final String LAST_DEPLOYMENT_REPORT_KEY = "CODE_PUSH_LAST_DEPLOYMENT_REPORT";
+    private static final String PACKAGE_KEY = "package";
+    private static final String PREVIOUS_DEPLOYMENT_KEY_KEY = "previousDeploymentKey";
+    private static final String PREVIOUS_LABEL_OR_APP_VERSION_KEY = "previousLabelOrAppVersion";
+    private static final String RETRY_DEPLOYMENT_REPORT_KEY = "CODE_PUSH_RETRY_DEPLOYMENT_REPORT";
+    private static final String STATUS_KEY = "status";
+
+    public CodePushTelemetryManager(Context context) {
+        this.settings = context.getSharedPreferences(CodePushConstants.CODE_PUSH_PREFERENCES, Context.MODE_PRIVATE);
     }
 
+    /**
+     * Generates a report if the current binary version has changed.
+     */
     public WritableMap getBinaryUpdateReport(String appVersion) {
-        String previousStatusReportIdentifier = this.getPreviousStatusReportIdentifier();
-        WritableMap reportMap = null;
-        if (previousStatusReportIdentifier == null) {
-            this.clearRetryStatusReport();
-            reportMap = Arguments.createMap();
-            reportMap.putString(APP_VERSION_KEY, appVersion);
-        } else if (!previousStatusReportIdentifier.equals(appVersion)) {
-            this.clearRetryStatusReport();
-            reportMap = Arguments.createMap();
-            if (this.isStatusReportIdentifierCodePushLabel(previousStatusReportIdentifier)) {
-                String previousDeploymentKey = this.getDeploymentKeyFromStatusReportIdentifier(previousStatusReportIdentifier);
-                String previousLabel = this.getVersionLabelFromStatusReportIdentifier(previousStatusReportIdentifier);
-                reportMap.putString(APP_VERSION_KEY, appVersion);
-                reportMap.putString(PREVIOUS_DEPLOYMENT_KEY_KEY, previousDeploymentKey);
-                reportMap.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, previousLabel);
-            } else {
-                // Previous status report was with a binary app version.
-                reportMap.putString(APP_VERSION_KEY, appVersion);
-                reportMap.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, previousStatusReportIdentifier);
-            }
+        String prevIdentifier = getPreviousStatusReportIdentifier();
+
+        if (prevIdentifier == null) {
+            clearRetryStatusReport();
+            WritableMap map = Arguments.createMap();
+            map.putString(APP_VERSION_KEY, appVersion);
+            return map;
         }
 
-        return reportMap;
-    }
-
-    public WritableMap getRetryStatusReport() {
-        String retryStatusReportString = mSettings.getString(RETRY_DEPLOYMENT_REPORT_KEY, null);
-        if (retryStatusReportString != null) {
+        if (!prevIdentifier.equals(appVersion)) {
             clearRetryStatusReport();
-            try {
-                JSONObject retryStatusReport = new JSONObject(retryStatusReportString);
-                return CodePushUtils.convertJsonObjectToWritable(retryStatusReport);
-            } catch (JSONException e) {
-                e.printStackTrace();
+            WritableMap map = Arguments.createMap();
+            map.putString(APP_VERSION_KEY, appVersion);
+
+            if (isCodePushIdentifier(prevIdentifier)) {
+                map.putString(PREVIOUS_DEPLOYMENT_KEY_KEY, extractDeploymentKey(prevIdentifier));
+                map.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, extractLabel(prevIdentifier));
+            } else {
+                map.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, prevIdentifier);
             }
+
+            return map;
         }
 
         return null;
     }
 
-    public WritableMap getRollbackReport(WritableMap lastFailedPackage) {
-        WritableMap reportMap =  Arguments.createMap();
-        reportMap.putMap(PACKAGE_KEY, lastFailedPackage);
-        reportMap.putString(STATUS_KEY, DEPLOYMENT_FAILED_STATUS);
-        return reportMap;
+    /**
+     * Retrieves any update status report saved for retrying.
+     */
+    public WritableMap getRetryStatusReport() {
+        String json = settings.getString(RETRY_DEPLOYMENT_REPORT_KEY, null);
+        if (json == null) return null;
+
+        clearRetryStatusReport();
+        try {
+            JSONObject retryData = new JSONObject(json);
+            return CodePushUtils.convertJsonObjectToWritable(retryData);
+        } catch (JSONException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
+    /**
+     * Constructs a rollback report for a failed update package.
+     */
+    public WritableMap getRollbackReport(WritableMap lastFailedPackage) {
+        WritableMap report = Arguments.createMap();
+        report.putMap(PACKAGE_KEY, lastFailedPackage);
+        report.putString(STATUS_KEY, DEPLOYMENT_FAILED_STATUS);
+        return report;
+    }
+
+    /**
+     * Constructs an update report if the current package differs from the previous.
+     */
     public WritableMap getUpdateReport(WritableMap currentPackage) {
-        String currentPackageIdentifier = this.getPackageStatusReportIdentifier(currentPackage);
-        String previousStatusReportIdentifier = this.getPreviousStatusReportIdentifier();
-        WritableMap reportMap = null;
-        if (currentPackageIdentifier != null) {
-            if (previousStatusReportIdentifier == null) {
-                this.clearRetryStatusReport();
-                reportMap = Arguments.createMap();
-                reportMap.putMap(PACKAGE_KEY, currentPackage);
-                reportMap.putString(STATUS_KEY, DEPLOYMENT_SUCCEEDED_STATUS);
-            } else if (!previousStatusReportIdentifier.equals(currentPackageIdentifier)) {
-                this.clearRetryStatusReport();
-                reportMap = Arguments.createMap();
-                if (this.isStatusReportIdentifierCodePushLabel(previousStatusReportIdentifier)) {
-                    String previousDeploymentKey = this.getDeploymentKeyFromStatusReportIdentifier(previousStatusReportIdentifier);
-                    String previousLabel = this.getVersionLabelFromStatusReportIdentifier(previousStatusReportIdentifier);
-                    reportMap.putMap(PACKAGE_KEY, currentPackage);
-                    reportMap.putString(STATUS_KEY, DEPLOYMENT_SUCCEEDED_STATUS);
-                    reportMap.putString(PREVIOUS_DEPLOYMENT_KEY_KEY, previousDeploymentKey);
-                    reportMap.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, previousLabel);
-                } else {
-                    // Previous status report was with a binary app version.
-                    reportMap.putMap(PACKAGE_KEY, currentPackage);
-                    reportMap.putString(STATUS_KEY, DEPLOYMENT_SUCCEEDED_STATUS);
-                    reportMap.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, previousStatusReportIdentifier);
-                }
+        String currentId = getStatusIdentifier(currentPackage);
+        String prevId = getPreviousStatusReportIdentifier();
+
+        if (currentId == null || currentId.equals(prevId)) return null;
+
+        clearRetryStatusReport();
+        WritableMap report = Arguments.createMap();
+        report.putMap(PACKAGE_KEY, currentPackage);
+        report.putString(STATUS_KEY, DEPLOYMENT_SUCCEEDED_STATUS);
+
+        if (prevId != null) {
+            if (isCodePushIdentifier(prevId)) {
+                report.putString(PREVIOUS_DEPLOYMENT_KEY_KEY, extractDeploymentKey(prevId));
+                report.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, extractLabel(prevId));
+            } else {
+                report.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, prevId);
             }
         }
 
-        return reportMap;
+        return report;
     }
 
+    /**
+     * Records the provided status report as the last successful report.
+     */
     public void recordStatusReported(ReadableMap statusReport) {
-        // We don't need to record rollback reports, so exit early if that's what was specified.
-        if (statusReport.hasKey(STATUS_KEY) && DEPLOYMENT_FAILED_STATUS.equals(statusReport.getString(STATUS_KEY))) {
-            return;
-        }
-        
+        if (DEPLOYMENT_FAILED_STATUS.equals(CodePushUtils.tryGetString(statusReport, STATUS_KEY))) return;
+
         if (statusReport.hasKey(APP_VERSION_KEY)) {
-            saveStatusReportedForIdentifier(statusReport.getString(APP_VERSION_KEY));
+            saveStatusIdentifier(statusReport.getString(APP_VERSION_KEY));
         } else if (statusReport.hasKey(PACKAGE_KEY)) {
-            String packageIdentifier = getPackageStatusReportIdentifier(statusReport.getMap(PACKAGE_KEY));
-            saveStatusReportedForIdentifier(packageIdentifier);
+            ReadableMap pkg = statusReport.getMap(PACKAGE_KEY);
+            String identifier = getStatusIdentifier(pkg);
+            if (identifier != null) {
+                saveStatusIdentifier(identifier);
+            }
         }
     }
 
+    /**
+     * Persists the report for a retry.
+     */
     public void saveStatusReportForRetry(ReadableMap statusReport) {
-        JSONObject statusReportJSON = CodePushUtils.convertReadableToJsonObject(statusReport);
-        mSettings.edit().putString(RETRY_DEPLOYMENT_REPORT_KEY, statusReportJSON.toString()).commit();
+        JSONObject json = CodePushUtils.convertReadableToJsonObject(statusReport);
+        settings.edit().putString(RETRY_DEPLOYMENT_REPORT_KEY, json.toString()).apply();
     }
+
+    // Private helpers
 
     private void clearRetryStatusReport() {
-        mSettings.edit().remove(RETRY_DEPLOYMENT_REPORT_KEY).commit();
-    }
-
-    private String getDeploymentKeyFromStatusReportIdentifier(String statusReportIdentifier) {
-        String[] parsedIdentifier = statusReportIdentifier.split(":");
-        if (parsedIdentifier.length > 0) {
-            return parsedIdentifier[0];
-        } else {
-            return null;
-        }
-    }
-
-    private String getPackageStatusReportIdentifier(ReadableMap updatePackage) {
-        // Because deploymentKeys can be dynamically switched, we use a
-        // combination of the deploymentKey and label as the packageIdentifier.
-        String deploymentKey = CodePushUtils.tryGetString(updatePackage, DEPLOYMENT_KEY_KEY);
-        String label = CodePushUtils.tryGetString(updatePackage, LABEL_KEY);
-        if (deploymentKey != null && label != null) {
-            return deploymentKey + ":" + label;
-        } else {
-            return null;
-        }
+        settings.edit().remove(RETRY_DEPLOYMENT_REPORT_KEY).apply();
     }
 
     private String getPreviousStatusReportIdentifier() {
-        return mSettings.getString(LAST_DEPLOYMENT_REPORT_KEY, null);
+        return settings.getString(LAST_DEPLOYMENT_REPORT_KEY, null);
     }
 
-    private String getVersionLabelFromStatusReportIdentifier(String statusReportIdentifier) {
-        String[] parsedIdentifier = statusReportIdentifier.split(":");
-        if (parsedIdentifier.length > 1) {
-            return parsedIdentifier[1];
-        } else {
-            return null;
-        }
+    private void saveStatusIdentifier(String identifier) {
+        settings.edit().putString(LAST_DEPLOYMENT_REPORT_KEY, identifier).apply();
     }
 
-    private boolean isStatusReportIdentifierCodePushLabel(String statusReportIdentifier) {
-        return statusReportIdentifier != null && statusReportIdentifier.contains(":");
+    private String getStatusIdentifier(ReadableMap pkg) {
+        String deploymentKey = CodePushUtils.tryGetString(pkg, DEPLOYMENT_KEY_KEY);
+        String label = CodePushUtils.tryGetString(pkg, LABEL_KEY);
+        return (deploymentKey != null && label != null) ? deploymentKey + ":" + label : null;
     }
 
-    private void saveStatusReportedForIdentifier(String appVersionOrPackageIdentifier) {
-        mSettings.edit().putString(LAST_DEPLOYMENT_REPORT_KEY, appVersionOrPackageIdentifier).commit();
+    private boolean isCodePushIdentifier(String identifier) {
+        return identifier != null && identifier.contains(":");
+    }
+
+    private String extractDeploymentKey(String identifier) {
+        String[] parts = identifier.split(":");
+        return parts.length > 0 ? parts[0] : null;
+    }
+
+    private String extractLabel(String identifier) {
+        String[] parts = identifier.split(":");
+        return parts.length > 1 ? parts[1] : null;
     }
 }
