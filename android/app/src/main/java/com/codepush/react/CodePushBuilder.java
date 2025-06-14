@@ -2,18 +2,19 @@ package com.codepushsdk.react;
 
 import android.content.Context;
 
-public class CodePushBuilder {
-    private String mDeploymentKey;
-    private Context mContext;
+import androidx.annotation.Nullable;
 
-    private boolean mIsDebugMode;
+public class CodePushBuilder {
+    private final String mDeploymentKey;
+    private final Context mContext;
+    private boolean mIsDebugMode = false;
     private String mServerUrl;
     private Integer mPublicKeyResourceDescriptor;
 
     public CodePushBuilder(String deploymentKey, Context context) {
         this.mDeploymentKey = deploymentKey;
-        this.mContext = context;
-        this.mServerUrl = CodePush.getServiceUrl();
+        this.mContext = context.getApplicationContext();
+        this.mServerUrl = CodePush.getServiceUrl(); // default
     }
 
     public CodePushBuilder setIsDebugMode(boolean isDebugMode) {
@@ -21,8 +22,8 @@ public class CodePushBuilder {
         return this;
     }
 
-    public CodePushBuilder setServerUrl(String serverUrl) {
-        this.mServerUrl = serverUrl;
+    public CodePushBuilder setServerUrl(@Nullable String serverUrl) {
+        if (serverUrl != null) this.mServerUrl = serverUrl;
         return this;
     }
 
@@ -32,6 +33,12 @@ public class CodePushBuilder {
     }
 
     public CodePush build() {
-        return new CodePush(this.mDeploymentKey, this.mContext, this.mIsDebugMode, this.mServerUrl, this.mPublicKeyResourceDescriptor);
+        return new CodePush(
+            this.mDeploymentKey,
+            this.mContext,
+            this.mIsDebugMode,
+            this.mServerUrl,
+            this.mPublicKeyResourceDescriptor
+        );
     }
 }
